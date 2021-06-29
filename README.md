@@ -8,6 +8,6 @@ Requirements:
 - docker-compose
 - localstack
 
-In order to run the project locally, first execute a docker-compose up
+In order to run the project locally, first execute a `docker-compose up`
 
-After getting localstack up and running in docker just run npm start
+After getting localstack up and running in docker just run `npm start`
