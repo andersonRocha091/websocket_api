@@ -1,0 +1,116 @@
+service: chatapp
+
+provider:
+    name: aws
+    runtime: nodejs12.x
+    region: us-east-1
+    environment:
+        tableName: ${self:custom.tableName}
+        TABLE_CHAT: ${self:custom.tableChat}
+    iamRoleStatements:
+        - Effect: Allow
+          Action:
+            - dynamodb:*
+          Resource: '*'
+
+custom:
+    tableName: WebsocketUsers
+    tableChat: chat
+    dynamodb:
+        start:
+            port: 8002
+            inMemory: true
+            heapInitial: 200m
+            heapMax: 1g
+            convertEmptyValues: true
+
+plugins:
+  - serverless-offline
+  - serverless-mocha-plugin
+  - serverless-dotenv-plugin
+
+functions:
+    websocket-connect:
+        handler: lambdas/websockets/connect.handler
+        events:
+            - websocket:
+            # how the websocket identifies which kind of event
+            # has been happened, so we decide which handler should
+            # we trigger
+                route: $connect
+    
+    websocket-disconnect:
+        handler: lambdas/websockets/disconnect.handler
+        events:
+            - websocket:
+                route: $disconnect
+    
+    websocket-default:
+        handler: lambdas/websockets/default.handler
+        events:
+            - websocket:
+                route: $default
+
+    websocket-message:
+        handler: lambdas/websockets/message.messageHandler
+        events:
+            - websocket:
+                route: message
+
+    channelManager:
+        handler: lambdas/websockets/channelManager.handler
+        events:
+            - websocket:
+                route: subscribeChannel
+            - websocket:
+                route: unsubscribeChannel
+    
+    hello:
+        handler: lambdas/websockets/tooling.handler
+        events:
+            - http:
+                method: get
+                path: hello
+    
+    broadcast:
+        handler: lambdas/websockets/broadcast.broadcastHandler
+        events:
+             - stream:
+                type: dynamodb
+                arn: "arn:aws:dynamodb:ddblocal:000000000000:table/chat/stream/2021-06-14T00:12:16.377"
+
+resources:
+    Resources:
+        WebsocketUserTable:
+            Type: AWS::DynamoDB::Table
+            Properties:
+                TableName: ${self:custom.tableName}
+                AttributeDefinitions:
+                    - AttributeName: pk
+                      AttributeType: S
+                    - AttributeName: sk
+                      AttributeType: S
+                KeySchema:
+                    - AttributeName: pk
+                      KeyType: HASH
+                    - AttributeName: sk
+                      KeyType: RANGE
+                BillingMode: PAY_PER_REQUEST
+                ProvisionedThroughput:
+                    ReadCapacityUnits: 5
+                    WriteCapacityUnits: 5
+                StreamSpecification:
+                    StreamViewType: NEW_AND_OLD_IMAGES
+                GlobalSecondaryIndexes:
+                    - IndexName: reverse
+                      KeySchema:
+                          - AttributeName: sk
+                            KeyType: HASH
+                          - AttributeName: pk
+                            KeyType: RANGE
+                      Projection:
+                        ProjectionType: ALL
+                      ProvisionedThroughput:
+                            ReadCapacityUnits: 5
+                            WriteCapacityUnits: 5
+                            
